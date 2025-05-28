@@ -9,8 +9,20 @@ import (
 	"metascan/pkg"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
+
+type Manifest struct {
+	OutputFile       string         `json:"output_file"`
+	OutputFormat     string         `json:"output_format"`
+	TotalAttempted   int            `json:"total_attempted"`
+	TotalProcessed   int            `json:"total_processed"`
+	TotalWithErrors  int            `json:"total_with_errors"`
+	OutputFileHashes pkg.FileHashes `json:"output_file_hashes"`
+	GeneratedAt      string         `json:"generated_at"`
+}
 
 func main() {
 	dirPath := flag.String("dir", ".", "Caminho para o diretório a ser processado")
@@ -18,7 +30,6 @@ func main() {
 	recursive := flag.Bool("r", false, "Processar subdiretórios recursivamente")
 	extFilter := flag.String("ext", "", "Filtrar apenas arquivos com esta extensão (ex: .jpg)")
 	format := flag.String("format", "csv", "Formato de saída: csv ou json")
-
 	flag.Parse()
 
 	if *dirPath == "" {
@@ -59,7 +70,6 @@ func main() {
 			return nil
 		}
 
-		// Filtra extensão, se especificado
 		if *extFilter != "" && !strings.HasSuffix(strings.ToLower(path), strings.ToLower(*extFilter)) {
 			return nil
 		}
@@ -85,13 +95,13 @@ func main() {
 		log.Printf("Erro final ao percorrer o diretório '%s': %v", *dirPath, err)
 	}
 
-	// --- Output ---
+	outputFilePath := *outputName + "." + strings.ToLower(*format)
+
 	switch strings.ToLower(*format) {
 	case "json":
-		jsonFilePath := *outputName + ".json"
-		jsonFile, err := os.Create(jsonFilePath)
+		jsonFile, err := os.Create(outputFilePath)
 		if err != nil {
-			log.Fatalf("Erro ao criar arquivo JSON '%s': %v", jsonFilePath, err)
+			log.Fatalf("Erro ao criar arquivo JSON '%s': %v", outputFilePath, err)
 		}
 		defer jsonFile.Close()
 
@@ -100,13 +110,12 @@ func main() {
 		if err := encoder.Encode(results); err != nil {
 			log.Fatalf("Erro ao escrever JSON: %v", err)
 		}
-		log.Printf("Relatório JSON gerado em: %s", jsonFilePath)
+		log.Printf("Relatório JSON gerado em: %s", outputFilePath)
 
 	default: // CSV como padrão
-		csvFilePath := *outputName + ".csv"
-		csvFile, err := os.Create(csvFilePath)
+		csvFile, err := os.Create(outputFilePath)
 		if err != nil {
-			log.Fatalf("Erro ao criar arquivo CSV '%s': %v", csvFilePath, err)
+			log.Fatalf("Erro ao criar arquivo CSV '%s': %v", outputFilePath, err)
 		}
 		defer csvFile.Close()
 
@@ -122,9 +131,64 @@ func main() {
 				log.Printf("Erro ao escrever registro no CSV: %v", err)
 			}
 		}
-
-		log.Printf("Relatório CSV gerado em: %s", csvFilePath)
+		log.Printf("Relatório CSV gerado em: %s", outputFilePath)
 	}
 
-	log.Printf("Processamento concluído. Arquivos tentados: %d. Arquivos incluídos: %d. Erros: %d.", filesAttempted, filesProcessed, filesWithErrors)
+	// --- Gerar manifesto ---
+	manifest := Manifest{
+		OutputFile:      outputFilePath,
+		OutputFormat:    *format,
+		TotalAttempted:  filesAttempted,
+		TotalProcessed:  filesProcessed,
+		TotalWithErrors: filesWithErrors,
+		GeneratedAt:     time.Now().Format(time.RFC3339),
+	}
+
+	hashes, err := pkg.CalcFileHashes(outputFilePath)
+	if err != nil {
+		log.Printf("Aviso: não foi possível calcular hashes do arquivo de saída: %v", err)
+	} else {
+		manifest.OutputFileHashes = hashes
+	}
+
+	manifestFilePath := *outputName + "-manifest." + strings.ToLower(*format)
+	manifestFile, err := os.Create(manifestFilePath)
+	if err != nil {
+		log.Fatalf("Erro ao criar manifesto: %v", err)
+	}
+	defer manifestFile.Close()
+
+	switch strings.ToLower(*format) {
+	case "json":
+		encoder := json.NewEncoder(manifestFile)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(manifest); err != nil {
+			log.Fatalf("Erro ao escrever manifesto JSON: %v", err)
+		}
+	case "csv":
+		manifestWriter := csv.NewWriter(manifestFile)
+		defer manifestWriter.Flush()
+
+		manifestWriter.Write([]string{
+			"OutputFile", "OutputFormat", "TotalAttempted", "TotalProcessed", "TotalWithErrors",
+			"MD5", "SHA1", "SHA256", "GeneratedAt",
+		})
+
+		manifestWriter.Write([]string{
+			manifest.OutputFile,
+			manifest.OutputFormat,
+			strconv.Itoa(manifest.TotalAttempted),
+			strconv.Itoa(manifest.TotalProcessed),
+			strconv.Itoa(manifest.TotalWithErrors),
+			manifest.OutputFileHashes.MD5,
+			manifest.OutputFileHashes.SHA1,
+			manifest.OutputFileHashes.SHA256,
+			manifest.GeneratedAt,
+		})
+	}
+
+	log.Printf("Manifesto gerado em: %s", manifestFilePath)
+
+	log.Printf("Processamento concluído. Arquivos tentados: %d. Arquivos incluídos: %d. Erros: %d.",
+		filesAttempted, filesProcessed, filesWithErrors)
 }
