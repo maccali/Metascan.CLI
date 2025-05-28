@@ -132,12 +132,43 @@ Output:
 
 ## 🎯 Use cases
 
+## 🎯 Use Cases
+
 ✅ **Digital Forensics**  
+Analyze file integrity, verify authenticity, and track metadata for investigations, audits, or security assessments.
+
 ✅ **Compliance & Auditing**  
+Ensure files meet regulatory and legal standards by verifying hashes, metadata, and provenance for audits or compliance reports.
+
 ✅ **Media Management**  
+Organize and catalog large collections of images, documents, or videos by automatically extracting metadata and generating structured reports.
+
 ✅ **Backup & Deduplication**  
+Identify duplicate files using cryptographic hashes, optimize storage, and maintain consistent backups across systems.
+
 ✅ **Geolocation Analysis**  
-✅ **Data Pipelines**
+Automatically extract GPS data from files (e.g., photos) and generate direct Google Maps links to visualize spatial information.
+
+✅ **Data Pipelines**  
+Integrate as a preprocessing step to enrich datasets with metadata, validate file integrity, and prepare structured outputs for downstream processing.
+
+✅ **Chain of Custody Documentation**  
+Provide verifiable cryptographic fingerprints (MD5, SHA1, SHA256) for each file to maintain a robust chain of custody in legal or compliance scenarios.
+
+✅ **Archival & Digital Preservation**  
+Document metadata and generate integrity hashes to support long-term digital preservation and ensure future accessibility.
+
+✅ **Content Verification in Media Workflows**  
+Validate that digital assets (e.g., photos, videos) are unaltered by comparing cryptographic hashes at each stage of content production and distribution.
+
+✅ **Automated Reporting for IT Asset Management**  
+Generate detailed CSV/JSON reports of file inventories across systems for IT audits, asset management, and security compliance.
+
+✅ **Research Data Integrity**  
+Facilitate reproducible research by cataloging datasets with metadata and cryptographic hashes, ensuring consistency and integrity.
+
+✅ **Quality Assurance in File Transfers**  
+Verify the completeness and integrity of files after transfer or synchronization between systems, storage media, or cloud platforms.
 
 ---
 
