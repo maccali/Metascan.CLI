@@ -25,38 +25,38 @@ type Manifest struct {
 }
 
 func main() {
-	dirPath := flag.String("dir", ".", "Caminho para o diretório a ser processado")
-	outputName := flag.String("output", "file_metadata_report", "Nome base do arquivo de saída (sem extensão)")
-	recursive := flag.Bool("r", false, "Processar subdiretórios recursivamente")
-	extFilter := flag.String("ext", "", "Filtrar apenas arquivos com esta extensão (ex: .jpg)")
-	format := flag.String("format", "csv", "Formato de saída: csv ou json")
+	dirPath := flag.String("dir", ".", "Path to the directory to process")
+	outputName := flag.String("output", "file_metadata_report", "Base name for the output file (without extension)")
+	recursive := flag.Bool("r", false, "Process subdirectories recursively")
+	extFilter := flag.String("ext", "", "Filter only files with this extension (e.g., .jpg)")
+	format := flag.String("format", "csv", "Output format: csv or json")
 	flag.Parse()
 
 	if *dirPath == "" {
-		log.Println("Erro: O caminho do diretório é obrigatório.")
+		log.Println("Error: Directory path is required.")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	dirInfo, err := os.Stat(*dirPath)
 	if os.IsNotExist(err) {
-		log.Fatalf("Erro: Diretório não encontrado em '%s'", *dirPath)
+		log.Fatalf("Error: Directory not found at '%s'", *dirPath)
 	}
 	if err != nil {
-		log.Fatalf("Erro ao obter informações do diretório '%s': %v", *dirPath, err)
+		log.Fatalf("Error getting directory info for '%s': %v", *dirPath, err)
 	}
 	if !dirInfo.IsDir() {
-		log.Fatalf("Erro: O caminho '%s' não é um diretório.", *dirPath)
+		log.Fatalf("Error: Path '%s' is not a directory.", *dirPath)
 	}
 
 	var results []*pkg.FileInfoData
 
-	log.Printf("Processando diretório: %s (Recursivo: %t)", *dirPath, *recursive)
+	log.Printf("Processing directory: %s (Recursive: %t)", *dirPath, *recursive)
 	var filesProcessed, filesAttempted, filesWithErrors int
 
 	walkFunc := func(path string, d fs.DirEntry, errWalk error) error {
 		if errWalk != nil {
-			log.Printf("Erro ao acessar '%s': %v (pulando)", path, errWalk)
+			log.Printf("Error accessing '%s': %v (skipping)", path, errWalk)
 			return nil
 		}
 
@@ -78,7 +78,7 @@ func main() {
 
 		data, errProc := pkg.ProcessFile(path)
 		if errProc != nil {
-			log.Printf("Erro ao processar arquivo '%s': %v", path, errProc)
+			log.Printf("Error processing file '%s': %v", path, errProc)
 			filesWithErrors++
 			return nil
 		}
@@ -92,7 +92,7 @@ func main() {
 	}
 
 	if err := filepath.WalkDir(*dirPath, walkFunc); err != nil {
-		log.Printf("Erro final ao percorrer o diretório '%s': %v", *dirPath, err)
+		log.Printf("Final error walking through directory '%s': %v", *dirPath, err)
 	}
 
 	outputFilePath := *outputName + "." + strings.ToLower(*format)
@@ -101,21 +101,21 @@ func main() {
 	case "json":
 		jsonFile, err := os.Create(outputFilePath)
 		if err != nil {
-			log.Fatalf("Erro ao criar arquivo JSON '%s': %v", outputFilePath, err)
+			log.Fatalf("Error creating JSON file '%s': %v", outputFilePath, err)
 		}
 		defer jsonFile.Close()
 
 		encoder := json.NewEncoder(jsonFile)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(results); err != nil {
-			log.Fatalf("Erro ao escrever JSON: %v", err)
+			log.Fatalf("Error writing JSON: %v", err)
 		}
-		log.Printf("Relatório JSON gerado em: %s", outputFilePath)
+		log.Printf("JSON report generated at: %s", outputFilePath)
 
-	default: // CSV como padrão
+	default:
 		csvFile, err := os.Create(outputFilePath)
 		if err != nil {
-			log.Fatalf("Erro ao criar arquivo CSV '%s': %v", outputFilePath, err)
+			log.Fatalf("Error creating CSV file '%s': %v", outputFilePath, err)
 		}
 		defer csvFile.Close()
 
@@ -123,18 +123,17 @@ func main() {
 		defer csvWriter.Flush()
 
 		if err := pkg.WriteCSVHeader(csvWriter); err != nil {
-			log.Fatalf("Erro ao escrever cabeçalho no CSV: %v", err)
+			log.Fatalf("Error writing CSV header: %v", err)
 		}
 
 		for _, data := range results {
 			if err := pkg.WriteCSVRecord(csvWriter, data); err != nil {
-				log.Printf("Erro ao escrever registro no CSV: %v", err)
+				log.Printf("Error writing record to CSV: %v", err)
 			}
 		}
-		log.Printf("Relatório CSV gerado em: %s", outputFilePath)
+		log.Printf("CSV report generated at: %s", outputFilePath)
 	}
 
-	// --- Gerar manifesto ---
 	manifest := Manifest{
 		OutputFile:      outputFilePath,
 		OutputFormat:    *format,
@@ -146,7 +145,7 @@ func main() {
 
 	hashes, err := pkg.CalcFileHashes(outputFilePath)
 	if err != nil {
-		log.Printf("Aviso: não foi possível calcular hashes do arquivo de saída: %v", err)
+		log.Printf("Warning: could not calculate output file hashes: %v", err)
 	} else {
 		manifest.OutputFileHashes = hashes
 	}
@@ -154,7 +153,7 @@ func main() {
 	manifestFilePath := *outputName + "-manifest." + strings.ToLower(*format)
 	manifestFile, err := os.Create(manifestFilePath)
 	if err != nil {
-		log.Fatalf("Erro ao criar manifesto: %v", err)
+		log.Fatalf("Error creating manifest: %v", err)
 	}
 	defer manifestFile.Close()
 
@@ -163,7 +162,7 @@ func main() {
 		encoder := json.NewEncoder(manifestFile)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(manifest); err != nil {
-			log.Fatalf("Erro ao escrever manifesto JSON: %v", err)
+			log.Fatalf("Error writing JSON manifest: %v", err)
 		}
 	case "csv":
 		manifestWriter := csv.NewWriter(manifestFile)
@@ -187,8 +186,7 @@ func main() {
 		})
 	}
 
-	log.Printf("Manifesto gerado em: %s", manifestFilePath)
-
-	log.Printf("Processamento concluído. Arquivos tentados: %d. Arquivos incluídos: %d. Erros: %d.",
+	log.Printf("Manifest generated at: %s", manifestFilePath)
+	log.Printf("Processing completed. Files attempted: %d. Files included: %d. Errors: %d.",
 		filesAttempted, filesProcessed, filesWithErrors)
 }

@@ -31,7 +31,7 @@ func GetFormattedRational(x *exif.Exif, name exif.FieldName, asDecimal bool, pre
 	num := ratVal.Num()
 	den := ratVal.Denom()
 	if den.Sign() == 0 {
-		return fmt.Sprintf("%s%s/0 (Inválido)", prefix, num.String()), true
+		return fmt.Sprintf("%s%s/0 (Invalid)", prefix, num.String()), true
 	}
 	if asDecimal {
 		precision := 2
@@ -101,7 +101,7 @@ type FileInfoData struct {
 func ProcessFile(filePath string) (*FileInfoData, error) {
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("erro ao obter informações de '%s': %w", filePath, err)
+		return nil, fmt.Errorf("error getting info for '%s': %w", filePath, err)
 	}
 	if fileInfo.IsDir() {
 		return nil, nil
@@ -109,29 +109,25 @@ func ProcessFile(filePath string) (*FileInfoData, error) {
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("erro ao abrir '%s': %w", filePath, err)
+		return nil, fmt.Errorf("error opening '%s': %w", filePath, err)
 	}
 	defer file.Close()
 
 	exifDataMap := make(map[string]string)
 	var gpsLat, gpsLong string
 
-	// Tenta ler EXIF, mas não falha se não conseguir
 	_, err = file.Seek(0, io.SeekStart)
 	if err != nil {
-		log.Printf("Aviso (EXIF Seek): Não foi possível rebobinar '%s': %v", filePath, err)
-		// Não retorna erro aqui, prossegue para hashes
+		log.Printf("Warning (EXIF Seek): Could not rewind '%s': %v", filePath, err)
 	} else {
-		x, errDecode := exif.Decode(file) // Tenta decodificar
-		if errDecode == nil {             // SÓ PREENCHE EXIF SE A DECODIFICAÇÃO FUNCIONAR
-			// (A lógica de preenchimento do exifDataMap permanece a mesma)
+		x, errDecode := exif.Decode(file)
+		if errDecode == nil {
 			if val, ok := GetStringVal(x, exif.Make); ok {
 				exifDataMap["Make"] = val
 			}
 			if val, ok := GetStringVal(x, exif.Model); ok {
 				exifDataMap["Model"] = val
 			}
-			// ... (resto do preenchimento de exifDataMap como antes) ...
 			if val, ok := GetStringVal(x, exif.Software); ok {
 				exifDataMap["Software"] = val
 			}
@@ -140,7 +136,6 @@ func ProcessFile(filePath string) (*FileInfoData, error) {
 			} else if val, ok := GetStringVal(x, exif.DateTime); ok {
 				exifDataMap["DateTime"] = val
 			}
-
 			if val, ok := GetIntVal(x, exif.PixelXDimension); ok {
 				exifDataMap["ImageWidth"] = fmt.Sprintf("%d", val)
 			}
@@ -150,12 +145,10 @@ func ProcessFile(filePath string) (*FileInfoData, error) {
 			if val, ok := GetIntVal(x, exif.ISOSpeedRatings); ok {
 				exifDataMap["ISO"] = fmt.Sprintf("%d", val)
 			}
-
 			if orientVal, ok := GetIntVal(x, exif.Orientation); ok {
 				switch orientVal {
 				case 1:
 					exifDataMap["Orientation"] = "Normal"
-				// ... (outros cases para orientação)
 				default:
 					exifDataMap["Orientation"] = fmt.Sprintf("%d", orientVal)
 				}
@@ -170,12 +163,10 @@ func ProcessFile(filePath string) (*FileInfoData, error) {
 				exifDataMap["FocalLength"] = val
 			}
 
-			latGPS, longGPS, errLatLong := x.LatLong() // Renomeado para evitar conflito com variáveis gpsLat, gpsLong
+			latGPS, longGPS, errLatLong := x.LatLong()
 			if errLatLong == nil {
 				gpsLat = fmt.Sprintf("%.6f", latGPS)
 				gpsLong = fmt.Sprintf("%.6f", longGPS)
-				// exifDataMap["GPSLatitude"] = gpsLat  // Não precisa mais colocar no mapa, já vai para a struct direto
-				// exifDataMap["GPSLongitude"] = gpsLong
 
 				if altTag, errAlt := x.Get(exif.GPSAltitude); errAlt == nil {
 					ratVal, errRat := altTag.Rat(0)
@@ -217,24 +208,21 @@ func ProcessFile(filePath string) (*FileInfoData, error) {
 					}
 				}
 			}
-		} else if !IsExifExpectedError(errDecode) { // Loga apenas se não for um erro esperado
-			log.Printf("Aviso (EXIF Decode): Não foi possível decodificar '%s': %v", filePath, errDecode)
+		} else if !IsExifExpectedError(errDecode) {
+			log.Printf("Warning (EXIF Decode): Could not decode '%s': %v", filePath, errDecode)
 		}
 	}
 
-	// --- Cálculo de Hashes (sempre tenta) ---
 	_, err = file.Seek(0, io.SeekStart)
 	if err != nil {
-		// Este erro é mais crítico para os hashes
-		return nil, fmt.Errorf("erro crítico ao rebobinar '%s' para hash: %w", filePath, err)
+		return nil, fmt.Errorf("critical error rewinding '%s' for hash: %w", filePath, err)
 	}
 	hMd5 := md5.New()
 	hSha1 := sha1.New()
 	hSha256 := sha256.New()
 	multiWriter := io.MultiWriter(hMd5, hSha1, hSha256)
 	if _, err := io.Copy(multiWriter, file); err != nil {
-		// Este também é um erro mais sério para a função principal da ferramenta
-		return nil, fmt.Errorf("erro ao calcular hashes para '%s': %w", filePath, err)
+		return nil, fmt.Errorf("error calculating hashes for '%s': %w", filePath, err)
 	}
 	md5Sum := hex.EncodeToString(hMd5.Sum(nil))
 	sha1Sum := hex.EncodeToString(hSha1.Sum(nil))
@@ -258,7 +246,7 @@ func ProcessFile(filePath string) (*FileInfoData, error) {
 		SHA256:           sha256Sum,
 		ExifMake:         exifDataMap["Make"],
 		ExifModel:        exifDataMap["Model"],
-		ExifDateTime:     exifDataMap["DateTimeOriginal"], // Ou DateTime se o original não existir
+		ExifDateTime:     exifDataMap["DateTimeOriginal"],
 		ExifImageWidth:   exifDataMap["ImageWidth"],
 		ExifImageHeight:  exifDataMap["ImageHeight"],
 		ExifISO:          exifDataMap["ISO"],
@@ -266,8 +254,8 @@ func ProcessFile(filePath string) (*FileInfoData, error) {
 		ExifExposureTime: exifDataMap["ExposureTime"],
 		ExifFocalLength:  exifDataMap["FocalLength"],
 		ExifOrientation:  exifDataMap["Orientation"],
-		GPSLatitude:      gpsLat,  // Vem diretamente da variável gpsLat
-		GPSLongitude:     gpsLong, // Vem diretamente da variável gpsLong
+		GPSLatitude:      gpsLat,
+		GPSLongitude:     gpsLong,
 		GPSAltitude:      exifDataMap["GPSAltitude"],
 		GPSDate:          exifDataMap["GPSDate"],
 		GPSTime:          exifDataMap["GPSTime"],
